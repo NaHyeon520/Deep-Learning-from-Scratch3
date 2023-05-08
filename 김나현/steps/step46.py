@@ -29,5 +29,5 @@ for i in range(max_iter):
     """for p in model.params():
         p.data-=lr*p.grad.data"""
     optimizer.update()
-    if i%100==0:
+    if i%1000==0:
         print(loss)

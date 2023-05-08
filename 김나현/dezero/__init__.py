@@ -7,5 +7,6 @@ else:
     import dezero.functions
     import dezero.utils
     from dezero.models import Model
+    from dezero.dataloaders import DataLoader
 
 setup_variable()
