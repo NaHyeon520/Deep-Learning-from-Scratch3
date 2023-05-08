@@ -1,3 +1,4 @@
+from ast import Return
 import numpy as np
 import weakref
 import contextlib
@@ -71,7 +72,18 @@ class Variable:
     def __mul__(self, other):
         return mul(self, other)
 
-    @property
+    def reshape(self,*shape): # reshape 함수를 인스턴스 메서드 형태로 호출
+      if len(shape) ==1 and isinstance(shape[0],(tuple.list)):
+        shape =shape[0]
+      return reshape(self,shape)  
+    
+    def transpose(self):
+      return transpose(self)
+
+    def sum(self,axis=None,keepdims=False):
+      return sum(self,axis,keepdims)
+
+    @property  #함수 호출 대신에 인스턴스 속성처럼 사용가능
     def shape(self):
       return self.data.shape
     @property
@@ -80,8 +92,11 @@ class Variable:
     @property
     def dtype(self):
       return self.data.dtype
-      
-        
+    @property
+    def T(self):
+      return transpose(self)
+
+
 class Function:
     def __call__(self,*inputs): # *은 받은 값을 튜플 형태로 저장하는 역할
       inputs = [as_variable(x)for x in inputs]
@@ -119,11 +134,16 @@ class Exp(Function):
 
 class Add(Function):
     def forward(self, x0, x1):
+        self.x0_shape,self.x1_shape=x0.shape,x1.shape
         y=x0+x1
         return y
     
     def backward(self, gy):
-        return gy, gy
+        gx0,gx1=gy,gy
+        if self.x0_shape != self.x1_shape:
+          gx0= sum_to(gx0,self.x0_shape)
+          gx1= sum_to(gx1,self.x1_shape)
+        return gx0,gx1
     
 class Mul(Function):
     def forward(self, x0, x1):
@@ -202,6 +222,103 @@ class Tanh(Function):
     gx = gy * (1 - y * y)
     return gx
 
+class Reshape(Function): # 텐서의 형태를 입력변수에 맞추어 변환함
+  def __init__(self,shape):
+    self.shape =shape
+
+  def forward(self,x):
+    self.x_shape=x.shape
+    y=x.reshape(self.shape)
+    return y
+
+  def backward(self,gy):
+    return reshape(gy,self.x_shape)
+
+def reshape(x,shape):
+  if x.shape==shape:
+    return as_variable(x)
+  return Reshape(shape)(x)
+
+class Transpose(Function):
+  def forward(self,x):
+    y=np.transpose(x)
+    return y
+  def backward(self,gy):
+    gx=transpose(gy)
+    return gx
+
+def transpose(x):
+  return Transpose()(x)
+
+class Sum(Function):
+  def __init__(self,axis,keepdims):
+    self.axis =axis
+    self.keepdims =keepdims
+
+  def forward(self,x):
+    self.x_shape = x.shape
+    y= x.sum(axis=self.axis,keepdims=self.keepdims)
+    return y
+  
+  def backward(self,gy):
+    gy = reshape_sum_backward(gy,self.x_shape,self.axis,self.keepdims)
+    
+    gx = broadcast_to(gy,self.x_shape)
+    return gx
+
+def sum(x,axis=None,keepdims=False):
+  return Sum(axis,keepdims)(x)
+
+class MatMul(Function):
+  def forward(self,x,W):
+    y= x.dot(W)
+    return y
+
+  def backward(self,gy):
+    x,W=self.inputs
+    gx=matmul(gy,W.T)
+    gW=matmul(x.T,gy)
+    return gx,gW
+
+def matmul(x,W):
+  return MatMul()(x,W)
+
+class BroadcastTo(Function):
+  def __init__(self,shape):
+    self.shape=shape
+
+  def forward(self,x):
+    self.x_shape =x.shape
+    y=np.broadcast_to(x,self.shape)
+    return y
+
+  def backward(self,gy):
+    gx= sum_to(gy,self.x_shape)
+    return gx
+
+def broadcast_to(x,shape):
+  if x.shape ==shape:
+    return as_variable(x)
+  return BroadcastTo(shape)(x)
+
+class SumTo(Function):
+  def __init__(self,shape):
+    self.shape =shape
+
+  def forward(self,x):
+    self.x_shape =x.shape
+    y=sum_to(x,self.shape)
+    return y
+
+  def backward(self,gy):
+    gx=broadcast_to(gy,self.x_shape)
+    return gx
+
+def sum_to(x,shape):
+  if x.shape==shape:
+    return as_variable(x)
+  return SumTo(shape)(x)
+
 def exp(x):
     return Exp()(x)
 def add(x0, x1):
@@ -226,12 +343,6 @@ def rdiv(x0,x1):
   return Div()(x1,x0)
 def pow(x,c):
   return Pow(c)(x)
-def sin(x):
-  return Sin()(x)
-def cos(x):
-  return Cos()(x)
-def tanh(x):
-  return Tanh()(x)
 
 Variable.__mul__=mul # 연산자 오버로딩
 Variable.__rmul__=mul
@@ -243,6 +354,15 @@ Variable.__rsub__=rsub
 Variable.__truediv__=div
 Variable.__rtruediv__=rdiv
 Variable.__pow__=pow
+
+#삼각함수
+def sin(x):
+  return Sin()(x)
+def cos(x):
+  return Cos()(x)
+def tanh(x):
+  return Tanh()(x)
+
 
 def numerical_diff(f,x,eps=1e-4):
   x0=Variable(x.data-eps)
@@ -308,3 +428,20 @@ def f(x):
 
 def gx2(x):
   return 12*x**2-4
+
+
+np.random.seed(0)
+x=np.random.rand(100,1)
+y=5+2*x+np.random.rand(100,1)
+x,y=Variable(x),Variable(y)
+
+W= Variable(np.zeros((1,1)))
+b= Variable(np.zeros(1))
+
+def predict(x):
+  y=matmul(x,W)+b
+  return y
+
+def mean_squared_error(x0,x1):
+  diff=x0-x1
+  return sum(diff**2)/len(diff)

@@ -127,6 +127,10 @@ def as_variable(obj):
   return Variable(obj)
 
 
+## Parameter ##
+class Parameter(Variable):
+  pass
+
 ## Function ##
 class Function:
   def __call__(self, *inputs):

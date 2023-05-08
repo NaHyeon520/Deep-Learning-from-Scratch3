@@ -20,5 +20,6 @@ else:
     
     import dezero.functions
     import dezero.utils
+    import dezero.cuda
 
 setup_variable()

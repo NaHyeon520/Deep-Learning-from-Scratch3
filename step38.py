@@ -71,7 +71,15 @@ class Variable:
     def __mul__(self, other):
         return mul(self, other)
 
-    @property
+    def reshape(self,*shape): # reshape 함수를 인스턴스 메서드 형태로 호출
+      if len(shape) ==1 and isinstance(shape[0],(tuple.list)):
+        shape =shape[0]
+      return reshape(self,shape)  
+    
+    def transpose(self):
+      return transpose(self)
+
+    @property  #함수 호출 대신에 인스턴스 속성처럼 사용가능
     def shape(self):
       return self.data.shape
     @property
@@ -80,8 +88,11 @@ class Variable:
     @property
     def dtype(self):
       return self.data.dtype
-      
-        
+    @property
+    def T(self):
+      return transpose(self)
+
+
 class Function:
     def __call__(self,*inputs): # *은 받은 값을 튜플 형태로 저장하는 역할
       inputs = [as_variable(x)for x in inputs]
@@ -202,6 +213,35 @@ class Tanh(Function):
     gx = gy * (1 - y * y)
     return gx
 
+class Reshape(Function): # 텐서의 형태를 입력변수에 맞추어 변환함
+  def __init__(self,shape):
+    self.shape =shape
+
+  def forward(self,x):
+    self.x_shape=x.shape
+    y=x.reshape(self.shape)
+    return y
+
+  def backward(self,gy):
+    return reshape(gy,self.x_shape)
+
+def reshape(x,shape):
+  if x.shape==shape:
+    return as_variable(x)
+  return Reshape(shape)(x)
+
+class Transpose(Function):
+  def forward(self,x):
+    y=np.transpose(x)
+    return y
+  def backward(self,gy):
+    gx=transpose(gy)
+    return gx
+
+def transpose(x):
+  return Transpose()(x)
+
+
 def exp(x):
     return Exp()(x)
 def add(x0, x1):
@@ -226,12 +266,6 @@ def rdiv(x0,x1):
   return Div()(x1,x0)
 def pow(x,c):
   return Pow(c)(x)
-def sin(x):
-  return Sin()(x)
-def cos(x):
-  return Cos()(x)
-def tanh(x):
-  return Tanh()(x)
 
 Variable.__mul__=mul # 연산자 오버로딩
 Variable.__rmul__=mul
@@ -243,6 +277,15 @@ Variable.__rsub__=rsub
 Variable.__truediv__=div
 Variable.__rtruediv__=rdiv
 Variable.__pow__=pow
+
+#삼각함수
+def sin(x):
+  return Sin()(x)
+def cos(x):
+  return Cos()(x)
+def tanh(x):
+  return Tanh()(x)
+
 
 def numerical_diff(f,x,eps=1e-4):
   x0=Variable(x.data-eps)
@@ -308,3 +351,11 @@ def f(x):
 
 def gx2(x):
   return 12*x**2-4
+
+
+x=Variable(np.random.rand(2,3))
+y=x.transpose()
+y=x.T
+
+print(x)
+print(y)
