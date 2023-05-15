@@ -84,8 +84,11 @@ class MNIST(Dataset):
                       'label': 't10k-labels-idx1-ubyte.gz'}
 
         files = train_files if self.train else test_files
-        data_path = get_file(url + files['target'])
-        label_path = get_file(url + files['label'])
+        #data_path = get_file(url + files['target'])
+        #label_path = get_file(url + files['label'])
+
+        data_path = url + files['target']
+        label_path = url + files['label']
 
         self.data = self._load_data(data_path)
         self.label = self._load_label(label_path)
