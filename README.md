@@ -1,4 +1,4 @@
-# Deep-Learning-from-Scratch3
+# Deep-Learning-from-Scratch3(PNU-AID)
 밑바닥부터 시작하는 딥러닝 3권 스터디
 기간 : 23.03 ~ 23.08(예정)
 
